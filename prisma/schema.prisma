@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid()) @db.UniqueIdentifier
+  email         String    @unique @db.NVarChar(320)
+  passwordHash  String    @map("password_hash") @db.NVarChar(255)
+  emailConfirmed Boolean  @default(true) @map("email_confirmed")
+  rawUserMeta   String?   @map("raw_user_meta") @db.NVarChar(Max)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  profile        Profile?
+  bidderProfiles BidderProfile[]
+  favorites      Favorite[]
+  uploadedPhotos ItemPhoto[]     @relation("PhotoUploader")
+  createdItems   AuctionItem[]   @relation("ItemCreator")
+  updatedItems   AuctionItem[]   @relation("ItemUpdater")
+  createdPeriods AuctionPeriod[] @relation("PeriodCreator")
+  updatedPeriods AuctionPeriod[] @relation("PeriodUpdater")
+
+  @@map("users")
+}
+
+model Company {
+  id        String   @id @default(uuid()) @db.UniqueIdentifier
+  code      String   @unique @db.NVarChar(32)
+  name      String   @db.NVarChar(200)
+  shortName String   @map("short_name") @db.NVarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  periods           AuctionPeriod[]
+  profiles          Profile[]
+  bidderProfiles    BidderProfile[]
+  bankAccounts      AuctionBankAccount[]
+  pushSubscriptions PushSubscription[]
+
+  @@map("companies")
+}
+
+model Bank {
+  id        String   @id @default(uuid()) @db.UniqueIdentifier
+  code      String   @unique @db.NVarChar(32)
+  name      String   @db.NVarChar(200)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  accounts AuctionBankAccount[]
+
+  @@map("banks")
+}
+
+model AuctionBankAccount {
+  id            String   @id @default(uuid()) @db.UniqueIdentifier
+  companyId     String   @map("company_id") @db.UniqueIdentifier
+  bankId        String   @map("bank_id") @db.UniqueIdentifier
+  accountHolder String   @map("account_holder") @db.NVarChar(200)
+  accountNumber String   @map("account_number") @db.NVarChar(64)
+  isActive      Boolean  @default(true) @map("is_active")
+  notes         String?  @db.NVarChar(Max)
+  createdAt     DateTime @default(now()) @map("created_at")
+  createdBy     String?  @map("created_by") @db.UniqueIdentifier
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  updatedBy     String?  @map("updated_by") @db.UniqueIdentifier
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  bank    Bank    @relation(fields: [bankId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("auction_bank_accounts")
+}
+
+model ItemCategory {
+  id        String   @id @default(uuid()) @db.UniqueIdentifier
+  name      String   @unique @db.NVarChar(120)
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("item_categories")
+}
+
+model AuctionPeriod {
+  id                 String    @id @default(uuid()) @db.UniqueIdentifier
+  companyId          String    @map("company_id") @db.UniqueIdentifier
+  code               String    @db.NVarChar(64)
+  title              String    @db.NVarChar(300)
+  description        String?   @db.NVarChar(Max)
+  startAt            DateTime  @map("start_at")
+  endAt              DateTime  @map("end_at")
+  status             String    @default("draft") @db.NVarChar(32)
+  winnerEmailsSentAt DateTime? @map("winner_emails_sent_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  createdBy          String?   @map("created_by") @db.UniqueIdentifier
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  updatedBy          String?   @map("updated_by") @db.UniqueIdentifier
+
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  creator   User?         @relation("PeriodCreator", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  updater   User?         @relation("PeriodUpdater", fields: [updatedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  items     AuctionItem[]
+
+  @@unique([companyId, code])
+  @@map("auction_periods")
+}
+
+model AuctionItem {
+  id                  String    @id @default(uuid()) @db.UniqueIdentifier
+  periodId            String    @map("period_id") @db.UniqueIdentifier
+  lotNumber           String    @map("lot_number") @db.NVarChar(64)
+  itemName            String    @map("item_name") @db.NVarChar(400)
+  description         String    @default("") @db.NVarChar(Max)
+  category            String?   @db.NVarChar(120)
+  itemCondition       String?   @map("item_condition") @db.NVarChar(120)
+  startingPrice       Decimal   @default(0) @map("starting_price") @db.Decimal(18, 2)
+  currentPrice        Decimal   @default(0) @map("current_price") @db.Decimal(18, 2)
+  bidIncrement        Decimal   @default(1000) @map("bid_increment") @db.Decimal(18, 2)
+  status              String    @default("draft") @db.NVarChar(32)
+  paymentConfirmed    Boolean   @default(false) @map("payment_confirmed")
+  paymentConfirmedAt  DateTime? @map("payment_confirmed_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  createdBy           String?   @map("created_by") @db.UniqueIdentifier
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  updatedBy           String?   @map("updated_by") @db.UniqueIdentifier
+
+  period    AuctionPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator   User?         @relation("ItemCreator", fields: [createdBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  updater   User?         @relation("ItemUpdater", fields: [updatedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  photos    ItemPhoto[]
+  bids      Bid[]
+  favorites Favorite[]
+
+  @@unique([periodId, lotNumber])
+  @@map("auction_items")
+}
+
+model ItemPhoto {
+  id          String   @id @default(uuid()) @db.UniqueIdentifier
+  itemId      String   @map("item_id") @db.UniqueIdentifier
+  storagePath String   @map("storage_path") @db.NVarChar(500)
+  sortOrder   Int      @default(0) @map("sort_order")
+  uploadedBy  String?  @map("uploaded_by") @db.UniqueIdentifier
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  item     AuctionItem @relation(fields: [itemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  uploader User?       @relation("PhotoUploader", fields: [uploadedBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("item_photos")
+}
+
+model Bid {
+  id        String   @id @default(uuid()) @db.UniqueIdentifier
+  itemId    String   @map("item_id") @db.UniqueIdentifier
+  bidderId  String   @map("bidder_id") @db.UniqueIdentifier
+  amount    Decimal  @db.Decimal(18, 2)
+  status    String   @default("active") @db.NVarChar(32)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  item   AuctionItem   @relation(fields: [itemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  bidder BidderProfile @relation(fields: [bidderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("bids")
+}
+
+model BidderProfile {
+  id          String   @id @default(uuid()) @db.UniqueIdentifier
+  authUserId  String?  @map("auth_user_id") @db.UniqueIdentifier
+  companyId   String   @map("company_id") @db.UniqueIdentifier
+  employeeNik String   @map("employee_nik") @db.NVarChar(64)
+  fullName    String   @map("full_name") @db.NVarChar(200)
+  ktpHash     String   @map("ktp_hash") @db.NVarChar(128)
+  publicAlias String   @map("public_alias") @db.NVarChar(120)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  user    User?   @relation(fields: [authUserId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  bids    Bid[]
+
+  @@unique([companyId, employeeNik])
+  @@map("bidder_profiles")
+}
+
+model Profile {
+  id          String   @id @db.UniqueIdentifier
+  companyId   String   @map("company_id") @db.UniqueIdentifier
+  username    String   @db.NVarChar(120)
+  fullName    String   @map("full_name") @db.NVarChar(200)
+  employeeNik String?  @map("employee_nik") @db.NVarChar(64)
+  role        String   @db.NVarChar(32)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user    User    @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  company Company @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([companyId, employeeNik])
+  @@map("profiles")
+}
+
+model Favorite {
+  id        String   @id @default(uuid()) @db.UniqueIdentifier
+  userId    String   @map("user_id") @db.UniqueIdentifier
+  itemId    String   @map("item_id") @db.UniqueIdentifier
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  item AuctionItem @relation(fields: [itemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([userId, itemId])
+  @@map("favorites")
+}
+
+model RegistrationOtp {
+  id          String   @id @default(uuid()) @db.UniqueIdentifier
+  email       String   @db.NVarChar(320)
+  otpHash     String   @map("otp_hash") @db.NVarChar(128)
+  employeeNik String   @map("employee_nik") @db.NVarChar(64)
+  fullName    String   @map("full_name") @db.NVarChar(200)
+  companyId   String?  @map("company_id") @db.UniqueIdentifier
+  ptName      String?  @map("pt_name") @db.NVarChar(200)
+  attempts    Int      @default(0)
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("registration_otps")
+}
+
+model PasswordResetOtp {
+  id          String   @id @default(uuid()) @db.UniqueIdentifier
+  employeeNik String   @map("employee_nik") @db.NVarChar(64)
+  email       String   @db.NVarChar(320)
+  otpHash     String   @map("otp_hash") @db.NVarChar(128)
+  attempts    Int      @default(0)
+  expiresAt   DateTime @map("expires_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("password_reset_otps")
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid()) @db.UniqueIdentifier
+  companyId String   @map("company_id") @db.UniqueIdentifier
+  endpoint  String   @db.NVarChar(1000)
+  p256dh    String   @db.NVarChar(255)
+  auth      String   @db.NVarChar(255)
+  userAgent String?  @map("user_agent") @db.NVarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([endpoint, companyId])
+  @@map("push_subscriptions")
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  tableName String   @map("table_name") @db.NVarChar(120)
+  recordId  String?  @map("record_id") @db.NVarChar(64)
+  action    String   @db.NVarChar(64)
+  oldData   String?  @map("old_data") @db.NVarChar(Max)
+  newData   String?  @map("new_data") @db.NVarChar(Max)
+  userId    String?  @map("user_id") @db.UniqueIdentifier
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
