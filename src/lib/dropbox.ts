@@ -76,7 +76,7 @@ export class DropboxClient {
         "Content-Type": "application/octet-stream",
         "Dropbox-API-Arg": arg,
       },
-      body: content,
+      body: new Uint8Array(content),
     });
     const text = await res.text();
     if (!res.ok) throw new Error(`dropbox upload error ${res.status}: ${text}`);

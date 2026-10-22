@@ -15,7 +15,7 @@
     "migrate:photos": "tsx scripts/migrate-photos-to-dropbox.ts"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
