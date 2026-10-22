@@ -7,9 +7,15 @@ export async function sendOtpEmail(to: string, otp: string, purpose: string): Pr
     purpose === "reset" ? "OTP Reset Password E-Lelang" : "OTP Registrasi E-Lelang";
   const html = `<p>Kode OTP Anda: <strong>${otp}</strong></p><p>Berlaku 10 menit. Jangan bagikan kode ini.</p>`;
 
+  // Local/dev only: allow logging OTP when key is intentionally unset.
   if (!apiKey) {
-    console.warn(`[email] BREVO_API_KEY missing — OTP for ${to}: ${otp}`);
-    return;
+    if (process.env.ALLOW_OTP_CONSOLE === "1") {
+      console.warn(`[email] BREVO_API_KEY missing — OTP for ${to}: ${otp}`);
+      return;
+    }
+    throw new Error(
+      "BREVO_API_KEY belum dikonfigurasi di server — email OTP tidak bisa dikirim",
+    );
   }
 
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -28,6 +34,7 @@ export async function sendOtpEmail(to: string, otp: string, purpose: string): Pr
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`Brevo error ${res.status}: ${text}`);
+    console.error(`[email] Brevo failed ${res.status}: ${text}`);
+    throw new Error(`Gagal kirim email OTP (${res.status})`);
   }
 }
