@@ -24,6 +24,10 @@ app.use(
 );
 app.use(express.json({ limit: "2mb" }));
 
+app.get("/", (_req, res) => {
+  res.type("text/plain").send("aku sayang kamu\n");
+});
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "lelang-be" });
 });
