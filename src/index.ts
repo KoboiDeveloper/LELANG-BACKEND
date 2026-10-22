@@ -14,11 +14,29 @@ loadEnv({ path: path.join(__dirname, "..", ".env") });
 
 const app = express();
 const port = Number(process.env.PORT || 4100);
-const origin = process.env.CORS_ORIGIN || "http://localhost:3000";
+const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:3000,http://localhost:3001")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 app.use(
   cors({
-    origin: origin.split(",").map((s) => s.trim()),
+    origin(origin, callback) {
+      // allow non-browser / same-origin tools
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      // Coolify sslip / preview hosts: allow if wildcard *.sslip.io is set
+      const okSslip = allowedOrigins.some(
+        (o) => o.startsWith("*.") && origin.endsWith(o.slice(1)),
+      );
+      callback(null, okSslip);
+    },
     credentials: true,
   }),
 );
